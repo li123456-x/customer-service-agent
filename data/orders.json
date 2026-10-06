@@ -1,0 +1,29 @@
+[
+  {
+    "order_id": "DD10001",
+    "user_name": "张三",
+    "product": "蓝牙耳机 Pro",
+    "status": "已发货",
+    "logistics": "顺丰速运，预计明天送达",
+    "refund_status": "未申请退款",
+    "after_sale": "支持7天无理由退货"
+  },
+  {
+    "order_id": "DD10002",
+    "user_name": "李四",
+    "product": "智能手表 S2",
+    "status": "已签收",
+    "logistics": "已于今天上午10:20签收",
+    "refund_status": "退款审核中",
+    "after_sale": "售后专员将在24小时内处理"
+  },
+  {
+    "order_id": "DD10003",
+    "user_name": "王五",
+    "product": "机械键盘 K8",
+    "status": "待发货",
+    "logistics": "仓库正在打包，预计今晚发出",
+    "refund_status": "未申请退款",
+    "after_sale": "发货前可直接取消订单"
+  }
+]
