@@ -5,7 +5,7 @@ def search_policy_knowledge(query):
     if not documents:
         return {
             "success": False,
-            "message": "没有检索到相关企业知识库内容",
+            "message": "没有检索到足够相关的企业知识库内容",
             "data": [],
         }
     return {

@@ -24,7 +24,7 @@ def list_knowledge_files():
         "data": files,
     }
 
-def search_knowledge_for_admin(query, top_k=3):
+def search_knowledge_for_admin(query, top_k=None):
     if not query.strip():
         return {
             "success": False,

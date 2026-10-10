@@ -1,4 +1,4 @@
-# 小想：企业级电商智能客服 Agent
+# 电商智能客服 Agent
 
 一个面向电商客服场景的 Agent 应用原型。项目使用 LangGraph 编排订单查询、物流查询、退款售后、企业知识库检索和人工审核流程，并通过 FastAPI 与 Vue 3 提供可交互的客服工作台。
 
@@ -12,6 +12,7 @@
 - 无订单号的发票、物流政策、退款政策等知识问答
 - 基于 `session_id` 的多轮对话与订单上下文继承
 - 质量争议、投诉和高风险退款的人工审核分流
+- 人工接待队列、客服领取会话、双向聊天及显式交回 AI
 - 会话记录、审核记录和 Agent 执行轨迹持久化
 - FastAPI 接口与自动生成的 Swagger 文档
 - Vue 3 客服工作台：聊天、审核、轨迹、知识库和系统状态
@@ -62,6 +63,8 @@ flowchart LR
 ```
 
 纯知识库问题（例如“发票怎么开”）不要求用户提供订单号，可直接进入 RAG 检索和回复生成流程。
+纯问候、致谢及简单确认通过 `smalltalk_reply` 节点直接回复，不继承订单、不调用业务工具或模型，也不创建审核单。
+问候同时包含业务问题时仍按业务意图处理；人工接待期间的消息继续交给人工，不自动切回 AI。
 
 ## 技术栈
 
@@ -147,11 +150,24 @@ MILVUS_URI=http://192.168.245.128:19530
 MILVUS_DB_NAME=customer_service_kb
 MILVUS_COLLECTION_NAME=docs
 
-RAG_TOP_K=3
-RAG_MIN_RELEVANCE_SCORE=0.45
+RAG_TOP_K=5
+RAG_MIN_RELEVANCE_SCORE=0.55
 ```
 
 不要将包含真实密钥和密码的 `.env` 提交到 Git。
+
+客服及知识库管理检索未显式指定 K 时，统一读取 `RAG_TOP_K`，当前默认5。
+管理接口也支持通过 `top_k` 参数显式指定1至100之间的整数进行对照检索。
+知识库检索会在 Top K 结果中保留余弦相似度大于或等于
+`RAG_MIN_RELEVANCE_SCORE` 的片段；因此实际返回数量可能小于 K。
+当前暂定配置为 Top 5、阈值 `0.55`，切分仍为500/80。
+取值依据见 [阈值与K探索报告](evaluation/threshold_k_report.md)：在已观察的80题中，
+该组合保留了63/66题的全部标注证据，没有将库内题过滤为空，库外仍有结果为5/14。
+这些不是回答准确率或独立留出验证结果；阈值不代表回答正确概率，也不是已验证最优值。
+纯知识库问题过滤后没有证据时，会返回 `knowledge_not_found`，不调用大模型生成政策。
+订单和物流问题仍可使用已查询到的业务数据，但不能补出缺少依据的政策。
+修改 K 或阈值后重启后端即可生效，不需要重新入库。早期评测报告使用未过滤检索，
+参数及报告均作为历史实验保留；最终回答质量还需独立验证。
 
 ### 3. 启动基础服务
 
@@ -296,6 +312,11 @@ Content-Type: application/json
 | GET | `/system/check` | PostgreSQL、Milvus 等依赖自检 |
 | POST | `/chat` | 发起或继续客服对话 |
 | GET | `/sessions/{session_id}` | 查询会话及历史消息 |
+| GET | `/handoffs` | 查询等待及接待中的人工会话 |
+| POST | `/handoffs/request` | 申请人工接待，重复申请复用等待状态 |
+| POST | `/handoffs/{session_id}/claim` | 客服领取会话 |
+| POST | `/handoffs/{session_id}/messages` | 当前接待客服发送消息 |
+| POST | `/handoffs/{session_id}/release` | 结束人工接待并交回 AI |
 | GET | `/reviews/pending` | 查询待人工审核单 |
 | GET | `/reviews/{review_no}` | 查询审核单详情 |
 | POST | `/reviews/approve` | 审核通过并回写会话 |
@@ -310,6 +331,43 @@ Content-Type: application/json
 完整参数和响应结构以 Swagger 文档为准。
 
 ## 人工审核流程
+
+### 实时人工接待
+
+已有数据库先运行一次增量迁移，仅增加字段和索引，不重建业务表，也不插入示例订单：
+
+```powershell
+python -m database.migrate_live_support
+```
+
+新安装运行 `python -m database.init_db` 时也会执行该迁移。
+
+1. 在“客服对话”点击“转人工”，或发送“转人工”；不要求提供订单号。
+2. 会话从 `ai` 切换为 `waiting_human`。用户可以继续补充消息，后端仅保存消息，不调用 AI。
+3. 在另一个浏览器窗口进入“人工接待”，填写客服名称，选择会话并点击“接入会话”。
+4. 会话进入 `human`，双方消息每 1.5 秒自动同步。刷新页面和服务重启后仍从 PostgreSQL 恢复。
+5. 客服点击“结束接待，交回 AI”后才恢复 AI；处理审核单本身不会自动切回 AI。
+
+当前同步采用短轮询，不是 WebSocket 推送。人工接待与退款审核分开：明确请求人工会进入接待队列，
+质量争议等自动审核分支则创建审核单并进入接待队列。相同会话、订单已有待处理审核单时会复用。
+AI 请求和接待操作使用 PostgreSQL 会话级 advisory lock 串行执行；接待归属与轮次校验防止抢接及过期回复，
+人工消息通过 `request_id` 去重。`agent_name` 是本地演示身份，还没有接入登录认证，不能作为生产权限凭证。
+
+本地不调用模型的测试：
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+真实 PostgreSQL 接管测试在随机独立测试 schema 内运行并清理，不使用业务表的数据：
+
+```powershell
+$env:RUN_LIVE_SUPPORT_DB_TESTS = "1"
+python -m unittest discover -s tests -p test_live_support.py -v
+Remove-Item Env:RUN_LIVE_SUPPORT_DB_TESTS
+```
+
+### 退款及争议审核
 
 以下场景会进入人工审核：
 
@@ -418,7 +476,7 @@ npm run dev
 
 - 使用结构化输出或模型分类器替换关键词意图识别
 - 接入 LangGraph Checkpointer 与原生人工中断/恢复
-- 增加 RAG 重排、相关性阈值和离线评测集
+- 增加 RAG 重排，并用独立验证集标定相关性阈值、扩充离线评测集
 - 引入 Redis 缓存、任务队列、连接池和重试机制
 - 增加身份认证、订单归属校验、RBAC 和隐私脱敏
 - 使用 Docker Compose 统一部署前端、后端、PostgreSQL 与 Milvus

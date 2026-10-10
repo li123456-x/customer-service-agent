@@ -82,6 +82,11 @@ def find_chat_session_by_id(session_id):
                     customer_name,
                     phone,
                     status,
+                    service_mode,
+                    assigned_agent,
+                    handoff_version,
+                    waiting_since,
+                    claimed_at,
                     created_at,
                     updated_at
                 FROM chat_sessions
@@ -101,10 +106,11 @@ def list_messages_by_session_id(session_id):
                     session_id,
                     role,
                     content,
+                    sender_name,
                     created_at
                 FROM chat_messages
                 WHERE session_id = %s
-                ORDER BY created_at ASC
+                ORDER BY id ASC
                 """,
                 (session_id,),
             )

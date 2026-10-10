@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from api.response import serialize_value
 from tools.knowledge_admin_tool import (
     list_knowledge_files,
@@ -20,7 +20,7 @@ def knowledge_files():
     return normalize_tool_result(list_knowledge_files())
 
 @router.get("/search")
-def knowledge_search(query: str, top_k: int = 3):
+def knowledge_search(query: str, top_k: int | None = Query(default=None, ge=1, le=100)):
     return normalize_tool_result(
         search_knowledge_for_admin(
             query=query,

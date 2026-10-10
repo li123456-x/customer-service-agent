@@ -11,7 +11,11 @@ def get_embeddings():
         dashscope_api_key=settings.dashscope_api_key,
     )
 
-def search_knowledge(query, top_k=3):
+def search_knowledge(query, top_k=None):
+    if top_k is None:
+        top_k = settings.rag_top_k
+    if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= 100:
+        raise ValueError("top_k must be an integer between 1 and 100")
     milvus_config = get_milvus_config()
     embeddings = get_embeddings()
     query_vector = embeddings.embed_query(query)
@@ -33,11 +37,15 @@ def search_knowledge(query, top_k=3):
         },
     )
     documents = []
-    for item in results[0]:
+    for item in results[0] if results else []:
+        score = item.get("distance")
+        # COSINE scores are higher-is-better; missing or NaN scores are not evidence.
+        if score is None or not (score >= settings.rag_min_relevance_score):
+            continue
         entity = item.get("entity", {})
         documents.append(
             {
-                "score": item.get("distance"),
+                "score": score,
                 "text": entity.get("text"),
                 "source": entity.get("source"),
                 "path": entity.get("path"),

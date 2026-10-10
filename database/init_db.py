@@ -1,4 +1,5 @@
 from config.database import get_connection
+from database.migrate_live_support import migrate_live_support
 
 def create_tables():
     with get_connection() as conn:
@@ -218,6 +219,7 @@ def insert_sample_data():
 
 def main():
     create_tables()
+    migrate_live_support()
     insert_sample_data()
     print("企业级智能客服数据库初始化完成")
 

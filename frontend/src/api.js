@@ -12,7 +12,7 @@ async function request(path, options = {}) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || "请求失败");
+    throw new Error(data.message || (typeof data.detail === "string" ? data.detail : "请求失败"));
   }
 
   return data;
@@ -62,13 +62,49 @@ export function getKnowledgeFiles() {
   return request("/knowledge/files");
 }
 
-export function searchKnowledge(query, topK = 3) {
-  return request(`/knowledge/search?query=${encodeURIComponent(query)}&top_k=${topK}`);
+export function searchKnowledge(query, topK) {
+  const params = new URLSearchParams({ query });
+  if (topK != null) {
+    params.set("top_k", String(topK));
+  }
+  return request(`/knowledge/search?${params.toString()}`);
 }
 
 export function reindexKnowledge() {
   return request("/knowledge/reindex", {
     method: "POST",
     body: JSON.stringify({}),
+  });
+}
+
+export function requestHandoff(sessionId) {
+  return request("/handoffs/request", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId || null }),
+  });
+}
+
+export function getSupportQueue() {
+  return request("/handoffs");
+}
+
+export function claimSupport(sessionId, agentName) {
+  return request(`/handoffs/${encodeURIComponent(sessionId)}/claim`, {
+    method: "POST",
+    body: JSON.stringify({ agent_name: agentName }),
+  });
+}
+
+export function sendSupportMessage(sessionId, payload) {
+  return request(`/handoffs/${encodeURIComponent(sessionId)}/messages`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function releaseSupport(sessionId, payload) {
+  return request(`/handoffs/${encodeURIComponent(sessionId)}/release`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

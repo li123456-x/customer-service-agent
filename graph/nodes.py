@@ -7,6 +7,7 @@ from database.chat_repository import (
     save_chat_message,
 )
 from database.human_review_repository import create_human_review
+from database.live_support_repository import request_handoff
 from database.trace_repository import find_latest_order_no_by_session_id, save_agent_trace
 from tools.logistics_tool import search_logistics
 from tools.order_tool import search_order
@@ -30,7 +31,23 @@ def extract_order_no_from_history(history_messages):
             return order_no
     return None
 
+def get_smalltalk_kind(message):
+    text = message.strip().lower().rstrip("!！?？。.,，~～ ")
+    expressions = {
+        "greeting": {"你好", "您好", "你好呀", "您好呀", "你好啊", "您好啊", "在吗", "在么", "有人吗", "有人在吗", "哈喽", "嗨", "hello", "hi", "hey", "早上好", "下午好", "晚上好", "早安"},
+        "thanks": {"谢谢", "谢谢你", "谢谢您", "谢谢啦", "感谢", "多谢", "辛苦了"},
+        "acknowledgement": {"好", "好的", "好滴", "嗯", "嗯嗯", "明白了", "知道了", "收到", "ok", "okay"},
+        "goodbye": {"再见", "拜拜", "bye", "bye bye", "回头见"},
+    }
+    for kind, phrases in expressions.items():
+        if text in phrases:
+            return kind
+    return None
+
+
 def recognize_intent(message):
+    if get_smalltalk_kind(message):
+        return "smalltalk", 0.95
     if any(keyword in message for keyword in ["发票", "开票", "抬头", "税号"]):
         return "knowledge_query", 0.85
     if any(keyword in message for keyword in ["政策", "规则", "流程", "条件", "多久到账", "怎么申请"]):
@@ -67,12 +84,14 @@ def start_node(state):
 def parse_message_node(state):
     user_message = state["user_message"]
     history_messages = state["history_messages"]
-    order_no = extract_order_no(user_message)
-    if not order_no and any(keyword in user_message for keyword in ["这个订单", "这个", "它", "刚才", "上面", "多少钱", "退款", "物流", "售后"]):
-        order_no = extract_order_no_from_history(history_messages)
-    if not order_no:
-        order_no = find_latest_order_no_by_session_id(state["session_id"])
     intent, confidence = recognize_intent(user_message)
+    order_no = None
+    if intent != "smalltalk":
+        order_no = extract_order_no(user_message)
+        if not order_no and any(keyword in user_message for keyword in ["这个订单", "这个", "它", "刚才", "上面", "多少钱", "退款", "物流", "售后"]):
+            order_no = extract_order_no_from_history(history_messages)
+        if not order_no:
+            order_no = find_latest_order_no_by_session_id(state["session_id"])
     return {
         **state,
         "order_no": order_no,
@@ -88,6 +107,24 @@ def parse_message_node(state):
             },
         ),
     }
+
+def smalltalk_reply_node(state):
+    kind = get_smalltalk_kind(state["user_message"])
+    replies = {
+        "greeting": "您好，我是小想。请问有什么可以帮您？",
+        "thanks": "不客气，有其他问题随时告诉我。",
+        "acknowledgement": "好的，有其他需要可以继续告诉我。",
+        "goodbye": "感谢您的咨询，再见。",
+    }
+    return {
+        **state,
+        "final_reply": replies.get(kind, replies["greeting"]),
+        "final_action": "smalltalk_reply",
+        "need_human_review": False,
+        "review_reason": None,
+        "trace_steps": add_trace_step(state, {"node": "smalltalk_reply", "kind": kind}),
+    }
+
 
 def ask_order_no_node(state):
     final_reply = "我还不知道您想查询哪个订单，请提供订单号，例如：DD10001。"
@@ -341,10 +378,11 @@ def create_human_review_node(state):
         agent_summary=str(state.get("context")),
         review_reason=state["review_reason"],
     )
+    request_handoff(state["session_id"], announce=False)
     final_reply = (
         "您的问题已为您转入人工审核，"
         f"审核单号：{review['review_no']}。"
-        "客服专员会根据订单和售后信息进一步处理。"
+        "会话已进入人工接待队列，客服接入后可在这里继续沟通。"
     )
     return {
         **state,
@@ -392,6 +430,23 @@ def build_fallback_reply(state):
 def generate_reply_node(state):
     order_result = state.get("order_result", {"success": False})
     knowledge_result = state.get("knowledge_result", {"success": False})
+    if state.get("intent") == "knowledge_query" and not knowledge_result.get("success"):
+        return {
+            **state,
+            "final_reply": (
+                "暂未检索到足够相关的企业政策依据，暂时无法确认您的问题。"
+                "请补充具体问题或商品信息，也可以联系人工客服核实。"
+            ),
+            "final_action": "knowledge_not_found",
+            "trace_steps": add_trace_step(
+                state,
+                {
+                    "node": "generate_reply",
+                    "final_action": "knowledge_not_found",
+                    "reason": "知识库检索未返回足够相关的证据",
+                },
+            ),
+        }
     if state.get("intent") == "knowledge_query" and knowledge_result.get("success"):
         pass
     elif not order_result["success"]:
@@ -413,6 +468,7 @@ def generate_reply_node(state):
 5. 如果工具没有查到数据，要明确说明未查询到。
 6. 历史对话只用于理解上下文，不能替代后端工具数据。
 7. 如果知识库中有相关政策，回复时要结合政策说明处理依据。
+8. 如果知识库未查到足够相关的政策，只能回复已查到的订单、物流或售后事实，政策部分要明确说明暂时无法确认，不能用常识或历史对话补出政策。
 """.strip()
     user_prompt = f"""
 历史对话：{state.get("history_messages")}

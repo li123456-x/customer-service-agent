@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "description": "在第二轮参数实验运行前冻结的新场景题。共享原始政策条款，不是独立真实流量或文档隔离测试。旧60题全部作为开发题，不再称为留出题。",
+  "cases": [
+    {"id":"H01","split":"validation","group":"cancel-acceptance-and-clock","query":"页面刚显示取消申请已受理，我能认为退款已经到账了吗？若仓库已在出库，要确认什么，到账时间从何时开始？","requires":["refund_cancel","refund_cancel_paid","refund_days","refund_clock"]},
+    {"id":"H02","split":"validation","group":"repair-and-accessory-action","query":"售后登记了维修和补发配件，是不是退款已经办完，新的快递单号也肯定有了？","requires":["after_repair","missing_send"]},
+    {"id":"H03","split":"validation","group":"invoice-company-preissue-timing","query":"公司电子发票还没开，税号和邮箱填错了，能申请修改吗？企业开票需要哪些信息，正常要等几天？","requires":["invoice_before","invoice_company","invoice_time"]},
+    {"id":"H04","split":"validation","group":"compare-stale-and-signed-parcels","query":"两笔包裹，一笔两天没更新，一笔显示签收却找不到；分别能怎么核查，显示签收能证明我拿到吗？","requires":["logistics_48","logistics_sign","logistics_sign_proof"]},
+    {"id":"H05","split":"validation","group":"stock-shortage-and-paid-repair","query":"同型号换货缺货，我想改成收费维修；客服能未经同意直接换型号或先修好再收钱吗？","requires":["exchange_stock","repair_quote"]},
+    {"id":"H06","split":"validation","group":"stereo-and-bluetooth-unconfirmed-reset","query":"一边耳机不响，重新配对还连不上，排查和提交售后要记录哪些信息？可以直接认定十秒按键重置有效吗？","requires":["faq_one","faq_connect","faq_reset"]},
+    {"id":"H07","split":"validation","group":"gift-versus-accessory-shipment","query":"箱子里没赠品也少一个原配件，两种情况需要怎样核实，能直接生成补发运单吗？","requires":["missing_gift","missing_send"]},
+    {"id":"H08","split":"validation","group":"evidence-supplement-privacy","query":"原来的故障售后单要补图片和视频，还需要故障时间、使用环境吗？客服要求验证码和重新建案件是否合理？","requires":["quality_evidence","quality_privacy","quality_existing"]},
+    {"id":"H09","split":"validation","group":"return-seven-days-opened-package","query":"商品签收第六天，外盒拆过但没确认完好；是否一定能无理由退，哪些品类条件和仓库检查不能省？","requires":["return_days","return_open"]},
+    {"id":"H10","split":"validation","group":"signed-damaged-without-video","query":"系统显示签收了，但包裹后来发现破损也没开箱视频；能仅因签收或无视频就否定售后吗，要保留什么？","requires":["logistics_sign_proof","damage_video"]},
+    {"id":"H11","split":"validation","group":"after-seven-repair-and-refund","query":"耳机超过七天才出现故障，商家建议维修；是否所有质量售后都不能受理，维修申请会不会自动退款？","requires":["quality_after7","after_repair"]},
+    {"id":"H12","split":"validation","group":"transport-damage-discount-cost","query":"有一件不喜欢想退，另一件运输摔坏要退；寄回费用能统一让我出吗，有优惠分摊的退款金额怎么核对？","requires":["return_postage","damage_postage","return_amount"]},
+    {"id":"H13","split":"validation","group":"pending-refund-financial-invoice","query":"财务说退款还是待审核，客服却说退款批准了且发票自动作废了，这样能直接认定吗？","requires":["after_pending","invoice_refund","refund_clock"]},
+    {"id":"H14","split":"validation","group":"delayed-eta-and-only-refund","query":"超过预计送达还没收到，我能要求只退钱不用核实吗？预计时间是不是保证，何时可以查运输异常？","requires":["refund_delay","logistics_eta","logistics_48"]},
+    {"id":"H15","split":"validation","group":"intact-package-battery-leak","query":"外包装看着完好，但里面电池裂开漏液，能据此排除运输问题或让我自己修吗？危险商品寄回谁安排？","requires":["damage_package","damage_danger"]},
+    {"id":"H16","split":"validation","group":"reset-instruction-and-fault-attribution","query":"客服只听到单耳无声就认定是我使用不当，还给了一个没确认型号的十秒重置办法；政策上这两个判断靠谱吗？","requires":["quality_blame","faq_reset"]},
+    {"id":"H17","split":"validation","group":"unknown-member-fee-proration","query":"取消平台会员后，年费按天退还是收手续费？","requires":[],"expected":"文档没有会员退费或手续费规则，不能套用商品订单退款规则。"},
+    {"id":"H18","split":"validation","group":"unknown-education-discount","query":"大学生买耳机能享受教育折扣吗，需要哪些学生认证？","requires":[],"expected":"文档没有学生优惠或认证规则。"},
+    {"id":"H19","split":"validation","group":"unknown-crossborder-tax-reimbursement","query":"七天内退回跨境包裹，平台会报销进口关税吗？","requires":[],"expected":"文档没有跨境关税报销政策，七天规则不能代替税费规则。"},
+    {"id":"H20","split":"validation","group":"unknown-extended-service-renewal","query":"购买延保后会自动续费吗，取消延保的手续费是多少？","requires":[],"expected":"文档没有延保自动续费或取消收费规则。"}
+  ]
+}

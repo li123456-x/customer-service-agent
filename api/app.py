@@ -9,6 +9,7 @@ from api.routes.review import router as review_router
 from api.routes.session import router as session_router
 from api.routes.trace import router as trace_router
 from api.routes.knowledge import router as knowledge_router
+from api.routes.support import router as support_router
 app = FastAPI(
     title="小想企业级智能客服 Agent API",
     description="基于 LangGraph、RAG、PostgreSQL、Milvus 的企业级智能客服后端",
@@ -35,3 +36,4 @@ app.include_router(session_router)
 app.include_router(system_router)
 app.include_router(trace_router)
 app.include_router(knowledge_router)
+app.include_router(support_router)

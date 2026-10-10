@@ -13,10 +13,13 @@ from graph.nodes import (
     query_order_node,
     query_refund_node,
     start_node,
+    smalltalk_reply_node,
 )
 from graph.state import CustomerServiceState
 
 def route_after_parse(state):
+    if state.get("intent") == "smalltalk":
+        return "smalltalk_reply"
     if not state.get("order_no") and state.get("intent") == "knowledge_query":
         return "query_knowledge"
     if not state.get("order_no"):
@@ -32,6 +35,7 @@ def build_customer_service_workflow():
     workflow = StateGraph(CustomerServiceState)
     workflow.add_node("start", start_node)
     workflow.add_node("parse_message", parse_message_node)
+    workflow.add_node("smalltalk_reply", smalltalk_reply_node)
     workflow.add_node("ask_order_no", ask_order_no_node)
     workflow.add_node("query_order", query_order_node)
     workflow.add_node("query_logistics", query_logistics_node)
@@ -49,12 +53,14 @@ def build_customer_service_workflow():
         "parse_message",
         route_after_parse,
         {
+            "smalltalk_reply": "smalltalk_reply",
             "ask_order_no": "ask_order_no",
             "query_order": "query_order",
             "query_knowledge": "query_knowledge",
         },
     )
     workflow.add_edge("ask_order_no", "finish")
+    workflow.add_edge("smalltalk_reply", "finish")
     workflow.add_edge("query_order", "query_logistics")
     workflow.add_edge("query_logistics", "query_refund")
     workflow.add_edge("query_refund", "query_knowledge")

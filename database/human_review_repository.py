@@ -12,6 +12,19 @@ def create_human_review(
     with get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"review:{session_id}:{order_no}",),
+            )
+            cursor.execute("""
+                SELECT id, review_no, review_status FROM human_reviews
+                WHERE session_id = %s AND order_no IS NOT DISTINCT FROM %s
+                    AND review_status = 'pending'
+                ORDER BY id DESC LIMIT 1
+            """, (session_id, order_no))
+            pending = cursor.fetchone()
+            if pending:
+                return pending
+            cursor.execute(
                 """
                 INSERT INTO human_reviews (
                     review_no,
